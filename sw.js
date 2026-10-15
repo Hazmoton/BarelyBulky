@@ -1,6 +1,6 @@
 // Network-first so a new deploy shows up on the next load; falls back to cache when offline.
-const CACHE = 'bulksorter-v2';
-const SHELL = ['./', './index.html', './moves.js', './cardfind.js', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'bulksorter-v3';
+const SHELL = ['./', './index.html', './moves.js', './cardfind.js', './matcher.js', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));

@@ -130,6 +130,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <script type="module">
 import { moveCard } from './moves.js';
 import { findCard, warpCard, CARD_W, CARD_H } from './cardfind.js';
+import { norm, match as matchIn, textOverlap, fuse, Voter } from './matcher.js';
 window.moveCard = moveCard; // handy for testing from a console; not wired into the UI yet
 
 const $ = s => document.querySelector(s);
@@ -153,7 +154,7 @@ const money = p => p == null ? null : '$' + p.toFixed(2);
 
 /* ---------- card name catalog + fuzzy match ---------- */
 let index = [];
-const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const match = raw => matchIn(raw, index);
 
 async function loadCatalog(){
   let c = await idb.get('catalog');
@@ -173,37 +174,6 @@ async function loadCatalog(){
   }
 }
 
-const rowA = new Uint16Array(200), rowB = new Uint16Array(200);
-function lev(a, b, max){
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  let prev = rowA, cur = rowB;
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++){
-    cur[0] = i; let rowMin = i; const ca = a.charCodeAt(i - 1);
-    for (let j = 1; j <= b.length; j++){
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca === b.charCodeAt(j - 1) ? 0 : 1));
-      cur[j] = v; if (v < rowMin) rowMin = v;
-    }
-    if (rowMin > max) return max + 1;
-    const t = prev; prev = cur; cur = t;
-  }
-  return prev[b.length];
-}
-function match(raw){
-  const q = norm(raw);
-  if (q.length < 3) return [];
-  const max = Math.ceil(q.length * 0.4);
-  const best = new Map();
-  for (const e of index){
-    const d = lev(q, e.norm, max);
-    if (d <= max){
-      const s = 1 - d / Math.max(q.length, e.norm.length);
-      const p = best.get(e.name);
-      if (!p || s > p.score) best.set(e.name, { name: e.name, score: s });
-    }
-  }
-  return [...best.values()].sort((a, b) => b.score - a.score).slice(0, 4);
-}
 function suggest(raw){
   const q = norm(raw);
   if (q.length < 2) return [];
@@ -502,24 +472,29 @@ function drawOverlay(quad){
   overlayTimer = setTimeout(() => ctx.clearRect(0, 0, overlay.width, overlay.height), 1500);
 }
 
-// cut out the title bar of an upright card image, boost contrast, pad it for the OCR engine
-function titleStrip(warp, invert, flip){
-  let src = warp;
-  if (flip){
-    src = document.createElement('canvas'); src.width = warp.width; src.height = warp.height;
-    const f = src.getContext('2d'); f.translate(src.width, src.height); f.rotate(Math.PI); f.drawImage(warp, 0, 0);
-  }
-  const sx = CARD_W * 0.04, sy = CARD_H * 0.03, sw = CARD_W * 0.74, sh = CARD_H * 0.085;
-  const scale = Math.min(3, Math.max(1, 110 / sh)), w = Math.round(sw * scale), h = Math.round(sh * scale), pad = 14;
+// OCR works on small, high-contrast crops of an upright (flattened) card. crop = [x0, x1, y0, y1] as fractions of the card.
+// Tight crops read some cards better and wide crops read others better, so we try several and keep the best match.
+const TITLE_CROPS = [[.04, .78, .03, .115], [.09, .80, .062, .105], [.085, .80, .05, .115]];
+const TEXT_CROP = [.07, .93, .62, .90];
+const USE_TEXT_CHECK = true; // second opinion from the rules text; set false to turn it off
+
+function flipCanvas(c){
+  const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
+  const x = o.getContext('2d'); x.translate(o.width, o.height); x.rotate(Math.PI); x.drawImage(c, 0, 0);
+  return o;
+}
+function prepRegion(src, [x0, x1, y0, y1], { invert = false, targetH = 120, maxScale = 4, scale: fixed, pct = 5 } = {}){
+  const sx = CARD_W * x0, sy = CARD_H * y0, sw = CARD_W * (x1 - x0), sh = CARD_H * (y1 - y0);
+  const scale = fixed ?? Math.min(maxScale, Math.max(1, targetH / sh)), w = Math.round(sw * scale), h = Math.round(sh * scale), pad = 14;
   const t = document.createElement('canvas'); t.width = w; t.height = h;
   const tc = t.getContext('2d', { willReadFrequently: true });
   tc.imageSmoothingQuality = 'high';
   tc.drawImage(src, sx, sy, sw, sh, 0, 0, w, h);
   const img = tc.getImageData(0, 0, w, h), d = img.data, hist = new Uint32Array(256);
   for (let i = 0; i < d.length; i += 4){ const y = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) | 0; d[i] = y; hist[y]++; }
-  const total = w * h; let acc = 0, lo = 0, hi = 255;
-  for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc > total * 0.05){ lo = v; break; } }
-  acc = 0; for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc > total * 0.05){ hi = v; break; } }
+  const cut = w * h * pct / 100; let acc = 0, lo = 0, hi = 255;
+  for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc > cut){ lo = v; break; } }
+  acc = 0; for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc > cut){ hi = v; break; } }
   const span = Math.max(40, hi - lo);
   for (let i = 0; i < d.length; i += 4){
     let y = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
@@ -540,7 +515,29 @@ async function getWorker(){
   return worker;
 }
 
-async function scanOnce(){
+/* second opinion: Scryfall's rules text for the top candidates vs the text printed on the card */
+const details = new Map(); // card name -> type line + rules text, or null if unavailable
+async function fetchDetails(names){
+  const need = names.filter(n => !details.has(n));
+  if (!need.length) return;
+  try {
+    const r = await fetch('https://api.scryfall.com/cards/collection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifiers: need.map(name => ({ name })) }) });
+    if (r.ok) for (const c of (await r.json()).data || []) details.set(c.name, [c.type_line, ...(c.card_faces || [c]).map(f => f.oracle_text || '')].join(' '));
+  } catch (e) { /* offline: skip the check */ }
+  for (const n of need) if (!details.has(n)) details.set(n, null);
+}
+async function textCheck(cands, upright, w){
+  const top = cands.slice(0, 5);
+  await fetchDetails(top.map(c => c.name));
+  await w.setParameters({ tessedit_pageseg_mode: '6' });
+  const { data } = await w.recognize(prepRegion(upright, TEXT_CROP, { scale: 2.5, pct: 3 }));
+  await w.setParameters({ tessedit_pageseg_mode: '7' });
+  const ranked = top.map(c => { const d = details.get(c.name), ov = d ? textOverlap(data.text, d) : null; return { name: c.name, score: fuse(c.score, ov) }; });
+  return { text: data.text, cands: ranked.sort((a, b) => b.score - a.score) };
+}
+
+// opts.auto: called from the auto loop (skip frames with no card in them, don't touch the status line)
+async function scanOnce(opts = {}){
   if (busy || !stream || !catalogReady) return null;
   busy = true; $('#scanBtn').disabled = true;
   try {
@@ -549,51 +546,72 @@ async function scanOnce(){
     const det = detect(frame.c);
     drawOverlay(det?.quad);
     guide.style.display = det ? 'none' : 'block';
+    if (!det && opts.auto && cv) return { cands: [], det: false };
     const warp = det ? det.warp : guideWarp(frame.c);
-    let best = null;
-    for (const [inv, flip] of [[false, false], [true, false], [false, true], [true, true]]){
-      const c = titleStrip(warp, inv, flip);
+    let flipped = null, best = null, tries = 0;
+    const plan = [[0, false, false], [1, false, false], [2, false, false], [0, true, false], [1, true, false], [0, false, true], [1, false, true], [0, true, true]];
+    for (const [ci, inv, flip] of plan){
+      if (best && (best.score >= 0.9 || (best.score >= 0.8 && tries >= 2))) break;
+      const upright = flip ? (flipped ??= flipCanvas(warp)) : warp;
+      const c = prepRegion(upright, TITLE_CROPS[ci], { invert: inv });
       const { data } = await w.recognize(c);
-      const text = data.text.trim().replace(/\s+/g, ' ');
-      const cands = match(text);
-      if (!best || (cands[0]?.score || 0) > (best.cands[0]?.score || 0)) best = { text, cands, inv, flip, canvas: c };
-      if (cands[0] && cands[0].score >= 0.8) break;
+      const text = data.text.trim().replace(/\s+/g, ' '), cands = match(text), score = cands[0]?.score || 0;
+      tries++;
+      if (!best || score > best.score) best = { score, text, cands, inv, flip, canvas: c };
+    }
+    let cands = best.cands, checked = false;
+    if (USE_TEXT_CHECK && cands.length && cands[0].score >= 0.5 && (cands[0].score < 0.9 || (cands[1] && cands[0].score - cands[1].score < 0.15))){
+      try { cands = (await textCheck(cands, best.flip ? (flipped ??= flipCanvas(warp)) : warp, w)).cands; checked = true; } catch (e) { /* keep title-only scores */ }
     }
     cropCv.width = best.canvas.width; cropCv.height = best.canvas.height; cropCv.getContext('2d').drawImage(best.canvas, 0, 0);
-    const tags = [det ? 'card outline found' : cv ? 'no outline, used guide box' : `detector ${cvStatus}, used guide box`, best.inv ? 'inverted' : '', best.flip ? 'upside down' : '', 'sharpness ' + Math.round(frame.s)].filter(Boolean).join(', ');
+    const tags = [det ? 'outline found' : cv ? 'no outline, used guide box' : `detector ${cvStatus}, used guide box`, best.inv ? 'inverted' : '', best.flip ? 'upside down' : '', checked ? 'text checked' : '', tries + ' reads', 'sharpness ' + Math.round(frame.s)].filter(Boolean).join(', ');
     $('#ocrText').textContent = (best.text ? `Read "${best.text}"` : 'Read nothing') + ` (${tags})`;
-    renderCands(best.cands);
-    setStatus(best.cands.length ? 'Tap the right card, or keep Auto-add on.' : det ? 'Found a card but could not read its name. Try more light or less glare.' : 'No card found. Put it on a plain, contrasting surface, or line the name up with the dashed box.');
-    return best;
+    if (!opts.auto) setStatus(cands.length ? 'Tap the right card.' : det ? 'Found a card but could not read its name. Try more light or less glare.' : 'No card found. Put it on a plain, contrasting surface, or line the name up with the dashed box.');
+    return { cands, det: !!det, text: best.text };
   } catch (e) {
     setStatus('Scan failed: ' + e.message); return null;
   } finally { busy = false; updateScanBtn(); }
 }
 function renderCands(cands){
   const box = $('#cands'); box.textContent = '';
-  cands.forEach((c, i) => {
-    const b = document.createElement('button'); if (i === 0) b.className = 'top';
+  cands.slice(0, 5).forEach((c, i) => {
+    const b = document.createElement('button'); if (i === 0 && c.score >= 0.8) b.className = 'top';
     const a = document.createElement('span'), s = document.createElement('span');
     a.textContent = c.name; s.textContent = Math.round(c.score * 100) + '%'; s.style.color = 'var(--dim)';
-    b.append(a, s); b.onclick = () => { addCard(c.name); box.textContent = ''; };
+    b.append(a, s); b.onclick = () => { addCard(c.name); voter.clear(); box.textContent = ''; };
     box.append(b);
   });
 }
-$('#scanBtn').onclick = scanOnce;
+$('#scanBtn').onclick = async () => { const r = await scanOnce(); if (r) renderCands(r.cands); };
 
-/* auto mode: add after the same confident match shows up twice in a row; swap or remove the card to re-arm */
-let autoOn = false, pending = null, confirms = 0, lastAuto = null;
-$('#auto').onchange = e => { autoOn = e.target.checked; if (autoOn) autoLoop(); };
+/* auto mode: decide from a few recent scans, not one frame. Adds on one very confident read, or on repeated decent reads
+   (they don't have to be back to back). After an add it waits for the card to leave the frame, or a different card to read clearly. */
+const voter = new Voter(5000);
+let autoOn = false, locked = null, absent = 0;
+$('#auto').onchange = e => { autoOn = e.target.checked; locked = null; absent = 0; voter.clear(); if (autoOn) autoLoop(); };
 async function autoLoop(){
   while (autoOn){
     if (!stream || !catalogReady){ await sleep(500); continue; }
-    const res = await scanOnce();
-    const top = res?.cands?.[0];
-    if (top && top.score >= 0.8){
-      if (top.name === pending) confirms++; else { pending = top.name; confirms = 1; }
-      if (confirms >= 2 && top.name !== lastAuto){ addCard(top.name); lastAuto = top.name; $('#cands').textContent = ''; }
-    } else { pending = null; confirms = 0; lastAuto = null; }
-    await sleep(350);
+    const res = await scanOnce({ auto: true });
+    if (res){
+      const top = res.cands[0];
+      if (locked){
+        absent = (cv ? !res.det : !top) ? absent + 1 : 0;
+        if (absent >= 2 || (top && top.score >= 0.85 && top.name !== locked)){ locked = null; absent = 0; voter.clear(); }
+      }
+      if (!locked){
+        if (!res.det && cv){ setStatus('Looking for a card…'); }
+        else {
+          const lead = voter.display(1)[0];
+          if (top && top.score >= 0.9 && lead && lead.name !== top.name) voter.clear(); // clearly a new card
+          voter.push(res.cands);
+          const pick = voter.decide(res.cands);
+          if (pick){ addCard(pick); locked = pick; voter.clear(); renderCands([]); setStatus(`Added ${pick}. Swap the card to scan the next one.`); }
+          else { renderCands(voter.display(5)); setStatus(top ? 'Reading… tap a name below if it is not adding.' : 'Card found, reading its name…'); }
+        }
+      }
+    }
+    await sleep(250);
   }
 }
 
