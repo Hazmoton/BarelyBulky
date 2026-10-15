@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15231f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Bulk Sorter</title>
+<style>
+:root{
+  --felt:#15231f; --panel:#1d302a; --line:#2c4439; --text:#e6efe9; --dim:#8fa89b;
+  --gold:#f0b44c; --bad:#e2685a; --ok:#6fcf97;
+  --font:"Avenir Next","Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--felt);color:var(--text);font-family:var(--font);font-size:16px}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+button{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer}
+button:active{background:var(--line)}
+button.primary{background:var(--gold);color:#201a0a;border-color:var(--gold);font-weight:600}
+button.small{padding:6px 10px;font-size:14px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+nav{display:flex;border-bottom:1px solid var(--line)}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-weight:600}
+nav button[aria-selected=true]{color:var(--gold);box-shadow:inset 0 -3px 0 var(--gold)}
+main{flex:1;overflow-y:auto;padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
+section[hidden]{display:none}
+#stage{position:relative;margin:0 auto;background:#000;border-radius:12px;overflow:hidden;width:100%;aspect-ratio:3/4;max-height:68vh}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#guide{position:absolute;border:2px solid var(--gold);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.45)}
+#strip{position:absolute;left:4%;width:74%;top:3.5%;height:7.5%;border:2px dashed var(--gold);border-radius:4px;background:rgba(240,180,76,.12)}
+#camOff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center;padding:20px;color:var(--dim)}
+.row{display:flex;gap:8px;margin:10px 0;align-items:center}
+.row>*{flex:1}
+.row label{flex:none;display:flex;gap:8px;align-items:center;color:var(--dim)}
+#status{color:var(--dim);font-size:14px;min-height:20px;margin:6px 0}
+#debug{display:flex;gap:10px;align-items:center;color:var(--dim);font-size:13px;margin:6px 0}
+#crop{height:36px;border-radius:4px;background:#000;max-width:50%}
+#cands{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+#cands button{display:flex;justify-content:space-between;text-align:left}
+#cands button.top{border-color:var(--gold)}
+#bar{display:none;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--ok);border-radius:10px;padding:8px 10px;margin:8px 0}
+#bar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#suggest{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+h3{margin:18px 0 6px;font-size:15px;color:var(--dim);font-weight:600}
+.item{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.item img,.item .ph{width:44px;height:61px;border-radius:4px;object-fit:cover;background:var(--panel);flex:none}
+.item .info{flex:1;min-width:0}
+.item .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .tl{color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qty{display:flex;align-items:center;gap:6px}
+.qty b{min-width:26px;text-align:center}
+.qty button{padding:4px 11px;font-size:18px;line-height:1.2}
+#counts{color:var(--dim);font-size:14px;margin:8px 0}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+#empty{color:var(--dim);text-align:center;padding:30px 10px}
+</style>
+</head>
+<body>
+<nav role="tablist">
+  <button role="tab" id="tabScan" aria-selected="true">Scan</button>
+  <button role="tab" id="tabColl" aria-selected="false">Collection</button>
+</nav>
+<main>
+  <section id="scanView">
+    <div id="stage">
+      <video id="video" playsinline muted></video>
+      <div id="guide"><div id="strip"></div></div>
+      <div id="camOff"><div>Camera is off. Line the card's name up with the dashed box.</div><button class="primary" id="camBtn">Start camera</button></div>
+    </div>
+    <div class="row">
+      <button class="primary" id="scanBtn" disabled>Scan card</button>
+      <label><input type="checkbox" id="auto" style="width:auto"> Auto-add</label>
+    </div>
+    <div id="status">Loading card names…</div>
+    <div id="debug"><canvas id="crop" width="1" height="1"></canvas><span id="ocrText"></span></div>
+    <div id="cands"></div>
+    <div id="bar"><span id="barText"></span><button class="small" id="plus">+1</button><button class="small" id="undo">Undo</button></div>
+    <h3>Add by name</h3>
+    <input id="manual" type="search" placeholder="Type part of a card name" autocomplete="off" autocapitalize="off">
+    <div id="suggest"></div>
+  </section>
+
+  <section id="collView" hidden>
+    <div class="row">
+      <input id="filter" type="search" placeholder="Search collection">
+      <select id="sort" style="flex:none;width:auto">
+        <option value="recent">Newest</option>
+        <option value="name">Name</option>
+        <option value="type">Type</option>
+        <option value="cmc">Mana value</option>
+      </select>
+    </div>
+    <div id="counts"></div>
+    <div id="list"></div>
+    <div class="tools">
+      <button id="copyList">Copy as text list</button>
+      <button id="dlCsv">Download CSV</button>
+      <button id="dlJson">Back up (JSON)</button>
+      <button id="restore">Restore backup</button>
+    </div>
+    <input type="file" id="file" accept="application/json" hidden>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script type="module">
+// Your module. Not wired into the UI yet; the collection is one bin ("bulk") for now.
+import { moveCard } from './moves.js';
+window.moveCard = moveCard; // handy for testing from a console
+
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- storage (IndexedDB key/value) ---------- */
+const idb = {
+  db: null,
+  open(){ return new Promise((res, rej) => { const r = indexedDB.open('bulksorter', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async get(k){ const db = this.db ??= await this.open(); return new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+  async set(k, v){ const db = this.db ??= await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+};
+
+/* store shape: { v, bins:{id:{id,name,type}}, cards:{ [name]: {name, bins:{binId:qty}, added, ...scryfall fields} } } */
+let store = { v: 1, bins: { bulk: { id: 'bulk', name: 'Bulk', type: 'storage' } }, cards: {} };
+let saveTimer = null;
+function save(){ clearTimeout(saveTimer); saveTimer = setTimeout(() => idb.set('store', store), 300); }
+const totalQty = c => Object.values(c.bins).reduce((a, b) => a + b, 0);
+
+/* ---------- card name catalog + fuzzy match ---------- */
+let index = [];
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+async function loadCatalog(){
+  let c = await idb.get('catalog');
+  if (!c || Date.now() - c.t > 14 * 864e5){
+    try {
+      const r = await fetch('https://api.scryfall.com/catalog/card-names');
+      const j = await r.json();
+      c = { t: Date.now(), data: j.data };
+      await idb.set('catalog', c);
+    } catch (e) { if (!c) throw e; }
+  }
+  index = [];
+  for (const name of c.data){
+    if (/^A-/.test(name) || name.length > 150) continue; // skip digital-only Alchemy rebalances
+    index.push({ name, norm: norm(name) });
+    if (name.includes(' // ')) index.push({ name, norm: norm(name.split(' // ')[0]) });
+  }
+}
+
+const rowA = new Uint16Array(200), rowB = new Uint16Array(200);
+function lev(a, b, max){
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = rowA, cur = rowB;
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++){
+    cur[0] = i; let rowMin = i; const ca = a.charCodeAt(i - 1);
+    for (let j = 1; j <= b.length; j++){
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca === b.charCodeAt(j - 1) ? 0 : 1));
+      cur[j] = v; if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    const t = prev; prev = cur; cur = t;
+  }
+  return prev[b.length];
+}
+function match(raw){
+  const q = norm(raw);
+  if (q.length < 3) return [];
+  const max = Math.ceil(q.length * 0.4);
+  const best = new Map();
+  for (const e of index){
+    const d = lev(q, e.norm, max);
+    if (d <= max){
+      const s = 1 - d / Math.max(q.length, e.norm.length);
+      const p = best.get(e.name);
+      if (!p || s > p.score) best.set(e.name, { name: e.name, score: s });
+    }
+  }
+  return [...best.values()].sort((a, b) => b.score - a.score).slice(0, 4);
+}
+function suggest(raw){
+  const q = norm(raw);
+  if (q.length < 2) return [];
+  const hits = new Set();
+  for (const e of index){ if (e.norm.includes(q)){ hits.add(e.name); if (hits.size >= 6) break; } }
+  return hits.size ? [...hits] : match(raw).map(m => m.name);
+}
+
+/* ---------- collection actions ---------- */
+let lastAdded = null;
+function addCard(name, qty = 1, bin = 'bulk'){
+  const c = store.cards[name] ??= { name, bins: {}, added: Date.now() };
+  c.bins[bin] = (c.bins[bin] || 0) + qty;
+  lastAdded = { name, bin };
+  navigator.vibrate?.(30);
+  save(); renderBar(); renderList(); enqueue(name);
+}
+function removeOne(name, bin){
+  const c = store.cards[name]; if (!c) return;
+  c.bins[bin] = (c.bins[bin] || 0) - 1;
+  if (c.bins[bin] <= 0) delete c.bins[bin];
+  if (totalQty(c) === 0) delete store.cards[name];
+  save(); renderBar(); renderList();
+}
+function renderBar(){
+  const bar = $('#bar');
+  if (!lastAdded){ bar.style.display = 'none'; return; }
+  const c = store.cards[lastAdded.name];
+  if (!c){ bar.style.display = 'none'; lastAdded = null; return; }
+  bar.style.display = 'flex';
+  $('#barText').textContent = `Added ${c.name} (you have ${totalQty(c)})`;
+}
+$('#plus').onclick = () => lastAdded && addCard(lastAdded.name, 1, lastAdded.bin);
+$('#undo').onclick = () => { if (lastAdded) removeOne(lastAdded.name, lastAdded.bin); };
+
+/* ---------- Scryfall details (throttled queue) ---------- */
+const queue = []; let running = false;
+function enqueue(n){ const c = store.cards[n]; if (c && !c.oracle_id && !queue.includes(n)){ queue.push(n); runQueue(); } }
+async function runQueue(){
+  if (running) return; running = true;
+  while (queue.length){
+    const n = queue.shift();
+    try {
+      const r = await fetch('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(n));
+      if (r.ok){
+        const j = await r.json(), f = j.card_faces?.[0], c = store.cards[n];
+        if (c){
+          Object.assign(c, {
+            oracle_id: j.oracle_id, type_line: j.type_line, cmc: j.cmc ?? 0,
+            mana_cost: j.mana_cost ?? f?.mana_cost ?? '', colors: j.colors ?? f?.colors ?? [],
+            img: (j.image_uris ?? f?.image_uris)?.small ?? ''
+          });
+          save(); renderList();
+        }
+      }
+    } catch (e) { /* offline: stays queued for next launch */ }
+    await sleep(120);
+  }
+  running = false;
+}
+
+/* ---------- collection view ---------- */
+function renderList(){
+  const q = norm($('#filter').value || ''), sort = $('#sort').value;
+  let cards = Object.values(store.cards).filter(c => !q || norm(c.name).includes(q));
+  const by = {
+    recent: (a, b) => b.added - a.added,
+    name: (a, b) => a.name.localeCompare(b.name),
+    type: (a, b) => (a.type_line || '~').localeCompare(b.type_line || '~') || a.name.localeCompare(b.name),
+    cmc: (a, b) => (a.cmc ?? 99) - (b.cmc ?? 99) || a.name.localeCompare(b.name)
+  };
+  cards.sort(by[sort]);
+  const all = Object.values(store.cards);
+  $('#counts').textContent = `${all.length} unique, ${all.reduce((a, c) => a + totalQty(c), 0)} total`;
+  const list = $('#list'); list.textContent = '';
+  if (!cards.length){
+    const d = document.createElement('div'); d.id = 'empty';
+    d.textContent = all.length ? 'No cards match that search.' : 'Nothing here yet. Scan a card or add one by name.';
+    list.append(d); return;
+  }
+  for (const c of cards.slice(0, 400)){
+    const row = document.createElement('div'); row.className = 'item';
+    const img = c.img ? Object.assign(document.createElement('img'), { src: c.img, alt: '', loading: 'lazy' }) : Object.assign(document.createElement('div'), { className: 'ph' });
+    const info = document.createElement('div'); info.className = 'info';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
+    const tl = document.createElement('div'); tl.className = 'tl'; tl.textContent = [c.mana_cost, c.type_line].filter(Boolean).join('  ') || 'Fetching details…';
+    info.append(nm, tl);
+    const qty = document.createElement('div'); qty.className = 'qty';
+    const minus = Object.assign(document.createElement('button'), { textContent: '−' });
+    const plus = Object.assign(document.createElement('button'), { textContent: '+' });
+    const n = document.createElement('b'); n.textContent = totalQty(c);
+    minus.onclick = () => { if (totalQty(c) > 1 || confirm(`Remove ${c.name}?`)) removeOne(c.name, c.bins.bulk ? 'bulk' : Object.keys(c.bins)[0]); };
+    plus.onclick = () => { addCard(c.name, 1, c.bins.bulk ? 'bulk' : Object.keys(c.bins)[0]); };
+    qty.append(minus, n, plus);
+    row.append(img, info, qty); list.append(row);
+  }
+  if (cards.length > 400){ const d = document.createElement('div'); d.id = 'empty'; d.textContent = `Showing 400 of ${cards.length}. Use search to narrow it down.`; list.append(d); }
+}
+$('#filter').oninput = renderList; $('#sort').onchange = renderList;
+
+/* ---------- export / backup ---------- */
+function download(name, text, type){
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  document.body.append(a); a.click(); a.remove();
+}
+const rowsOut = () => Object.values(store.cards).sort((a, b) => a.name.localeCompare(b.name));
+$('#copyList').onclick = async () => {
+  const t = rowsOut().map(c => `${totalQty(c)} ${c.name}`).join('\n');
+  try { await navigator.clipboard.writeText(t); setStatus('Copied. Paste it into Archidekt or a notes app.'); } catch { download('collection.txt', t, 'text/plain'); }
+};
+$('#dlCsv').onclick = () => {
+  const esc = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  const lines = ['Quantity,Name,Bin,Type'];
+  for (const c of rowsOut()) for (const [b, q] of Object.entries(c.bins)) lines.push([q, esc(c.name), esc(store.bins[b]?.name || b), esc(c.type_line)].join(','));
+  download('collection.csv', lines.join('\n'), 'text/csv');
+};
+$('#dlJson').onclick = () => download('bulk-sorter-backup.json', JSON.stringify(store), 'application/json');
+$('#restore').onclick = () => $('#file').click();
+$('#file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!j.cards || !j.bins) throw new Error('bad file');
+    if (!confirm('Replace your current collection with this backup?')) return;
+    store = j; save(); renderList(); renderBar(); Object.keys(store.cards).forEach(enqueue);
+  } catch { alert('That file is not a Bulk Sorter backup.'); }
+  e.target.value = '';
+};
+
+/* ---------- camera + OCR ---------- */
+const video = $('#video'), stage = $('#stage'), guide = $('#guide'), cropCv = $('#crop');
+let stream = null, worker = null, busy = false, catalogReady = false;
+const CARD_AR = 63 / 88;
+function setStatus(t){ $('#status').textContent = t; }
+
+function geo(){
+  const W = stage.clientWidth, H = stage.clientHeight;
+  const gh = Math.min(H * 0.92, W * 0.92 / CARD_AR), gw = gh * CARD_AR;
+  return { W, H, gw, gh, gx: (W - gw) / 2, gy: (H - gh) / 2 };
+}
+function layout(){
+  if (video.videoWidth){
+    const ar = video.videoWidth / video.videoHeight;
+    stage.style.aspectRatio = ar;
+    stage.style.width = `min(100%, ${68 * ar}vh)`;
+  }
+  const g = geo();
+  Object.assign(guide.style, { left: g.gx + 'px', top: g.gy + 'px', width: g.gw + 'px', height: g.gh + 'px' });
+}
+addEventListener('resize', layout);
+
+async function startCam(){
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    video.srcObject = stream; await video.play();
+    $('#camOff').style.display = 'none';
+    layout(); updateScanBtn();
+  } catch (e) {
+    $('#camOff').firstElementChild.textContent = 'Camera blocked or unavailable (' + e.name + '). Allow camera access for this site, and make sure it is loaded over https.';
+  }
+}
+$('#camBtn').onclick = startCam;
+const updateScanBtn = () => { $('#scanBtn').disabled = !(stream && catalogReady); };
+
+function grabStrip(invert){
+  const g = geo(), k = video.videoWidth / g.W;
+  const sx = (g.gx + g.gw * 0.04) * k, sy = (g.gy + g.gh * 0.035) * k, sw = g.gw * 0.74 * k, sh = g.gh * 0.075 * k;
+  const scale = Math.min(3, Math.max(1, 110 / sh));
+  const w = Math.round(sw * scale), h = Math.round(sh * scale), pad = 14;
+  const t = document.createElement('canvas'); t.width = w; t.height = h;
+  const tc = t.getContext('2d', { willReadFrequently: true });
+  tc.imageSmoothingQuality = 'high';
+  tc.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+  const img = tc.getImageData(0, 0, w, h), d = img.data, hist = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4){ const y = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) | 0; d[i] = y; hist[y]++; }
+  const total = w * h; let acc = 0, lo = 0, hi = 255;
+  for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc > total * 0.05){ lo = v; break; } }
+  acc = 0; for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc > total * 0.05){ hi = v; break; } }
+  const span = Math.max(40, hi - lo);
+  for (let i = 0; i < d.length; i += 4){
+    let y = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
+    if (invert) y = 255 - y;
+    d[i] = d[i + 1] = d[i + 2] = y; d[i + 3] = 255;
+  }
+  tc.putImageData(img, 0, 0);
+  const out = document.createElement('canvas'); out.width = w + pad * 2; out.height = h + pad * 2;
+  const oc = out.getContext('2d'); oc.fillStyle = '#fff'; oc.fillRect(0, 0, out.width, out.height); oc.drawImage(t, pad, pad);
+  return out;
+}
+
+async function getWorker(){
+  if (worker) return worker;
+  setStatus('Loading text reader (first time downloads about 10 MB)…');
+  worker = await Tesseract.createWorker('eng', 1, {});
+  await worker.setParameters({ tessedit_pageseg_mode: '7' });
+  return worker;
+}
+
+async function scanOnce(){
+  if (busy || !stream || !catalogReady) return null;
+  busy = true; $('#scanBtn').disabled = true;
+  try {
+    const w = await getWorker();
+    let best = null;
+    for (const inv of [false, true]){
+      const c = grabStrip(inv);
+      cropCv.width = c.width; cropCv.height = c.height; cropCv.getContext('2d').drawImage(c, 0, 0);
+      const { data } = await w.recognize(c);
+      const text = data.text.trim().replace(/\s+/g, ' ');
+      const cands = match(text);
+      if (!best || (cands[0]?.score || 0) > (best.cands[0]?.score || 0)) best = { text, cands, inv };
+      if (cands[0] && cands[0].score >= 0.8) break;
+    }
+    $('#ocrText').textContent = best.text ? `Read: "${best.text}"${best.inv ? ' (inverted)' : ''}` : 'Read: nothing';
+    renderCands(best.cands);
+    setStatus(best.cands.length ? 'Tap the right card, or keep Auto-add on.' : 'No match. Line the name up with the dashed box and hold steady.');
+    return best;
+  } catch (e) {
+    setStatus('Scan failed: ' + e.message); return null;
+  } finally { busy = false; updateScanBtn(); }
+}
+function renderCands(cands){
+  const box = $('#cands'); box.textContent = '';
+  cands.forEach((c, i) => {
+    const b = document.createElement('button'); if (i === 0) b.className = 'top';
+    const a = document.createElement('span'), s = document.createElement('span');
+    a.textContent = c.name; s.textContent = Math.round(c.score * 100) + '%'; s.style.color = 'var(--dim)';
+    b.append(a, s); b.onclick = () => { addCard(c.name); box.textContent = ''; };
+    box.append(b);
+  });
+}
+$('#scanBtn').onclick = scanOnce;
+
+/* auto mode: add after the same confident match shows up twice in a row; swap or remove the card to re-arm */
+let autoOn = false, pending = null, confirms = 0, lastAuto = null;
+$('#auto').onchange = e => { autoOn = e.target.checked; if (autoOn) autoLoop(); };
+async function autoLoop(){
+  while (autoOn){
+    if (!stream || !catalogReady){ await sleep(500); continue; }
+    const res = await scanOnce();
+    const top = res?.cands?.[0];
+    if (top && top.score >= 0.8){
+      if (top.name === pending) confirms++; else { pending = top.name; confirms = 1; }
+      if (confirms >= 2 && top.name !== lastAuto){ addCard(top.name); lastAuto = top.name; $('#cands').textContent = ''; }
+    } else { pending = null; confirms = 0; lastAuto = null; }
+    await sleep(350);
+  }
+}
+
+/* manual add */
+$('#manual').oninput = e => {
+  const box = $('#suggest'); box.textContent = '';
+  for (const name of suggest(e.target.value)){
+    const b = document.createElement('button'); b.textContent = name; b.style.textAlign = 'left';
+    b.onclick = () => { addCard(name); e.target.value = ''; box.textContent = ''; };
+    box.append(b);
+  }
+};
+
+/* tabs */
+function tab(which){
+  const scan = which === 'scan';
+  $('#scanView').hidden = !scan; $('#collView').hidden = scan;
+  $('#tabScan').setAttribute('aria-selected', scan); $('#tabColl').setAttribute('aria-selected', !scan);
+  if (!scan) renderList(); else layout();
+}
+$('#tabScan').onclick = () => tab('scan'); $('#tabColl').onclick = () => tab('coll');
+
+/* boot */
+(async () => {
+  const saved = await idb.get('store'); if (saved) store = saved;
+  renderList(); renderBar(); layout();
+  Object.keys(store.cards).forEach(enqueue);
+  try {
+    await loadCatalog(); catalogReady = true;
+    setStatus(`Ready. ${index.length.toLocaleString()} card names loaded.`); updateScanBtn();
+  } catch (e) { setStatus('Could not load card names. Check your connection and reload.'); }
+})();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
