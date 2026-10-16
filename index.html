@@ -29,7 +29,7 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 nav button[aria-selected=true]{color:var(--gold);box-shadow:inset 0 -3px 0 var(--gold)}
 main{flex:1;overflow-y:auto;padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
 section[hidden]{display:none}
-#stage{position:relative;margin:0 auto;background:#000;border-radius:12px;overflow:hidden;width:100%;aspect-ratio:3/4;max-height:68vh}
+#stage{position:relative;margin:0 auto;background:#000;border-radius:12px;overflow:hidden;width:100%;aspect-ratio:3/4;max-height:34dvh}
 #video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 #overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #guide{position:absolute;border:2px solid var(--gold);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.45);pointer-events:none}
@@ -62,19 +62,51 @@ h3{margin:18px 0 6px;font-size:15px;color:var(--dim);font-weight:600}
 #empty{color:var(--dim);text-align:center;padding:30px 10px}
 dialog{background:var(--felt);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:14px;width:min(94vw,520px);max-height:80vh}
 dialog::backdrop{background:rgba(0,0,0,.6)}
-#pickHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
-#pickHead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+.dhead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #pickList{overflow-y:auto;max-height:62vh}
 .pk{display:flex;gap:10px;align-items:center;width:100%;text-align:left;margin-bottom:6px}
 .pk img{width:40px;height:56px;border-radius:3px;flex:none;background:var(--panel)}
 .pk .t{flex:1;min-width:0}
 .pk .t div:last-child{color:var(--dim);font-size:13px}
+
+#grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:14px;border-radius:14px;min-height:112px;position:relative}
+.tile.wide{grid-column:1/-1;min-height:84px}
+.tile .ic{font-size:30px;line-height:1.1}
+.tile .nm{font-weight:700;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.tile .sb{color:var(--dim);font-size:13px}
+.tile .bd{position:absolute;top:10px;right:10px;font-size:11px;color:var(--gold);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.tile.add{align-items:center;justify-content:center;border-style:dashed;color:var(--dim)}
+.tile.add .ic{font-size:34px}
+#setPill{position:absolute;top:8px;right:8px;z-index:3;display:flex;gap:6px;align-items:center;font-size:13px;background:rgba(0,0,0,.6);border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--dim)}
+#setPill.on{border-color:var(--gold);color:var(--gold)}
+#setPill input{width:auto;margin:0}
+.ctl select{flex:1.5;min-width:0}
+details{margin:10px 0;color:var(--dim)}
+summary{cursor:pointer;font-size:13px}
+.iconPick{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.iconPick button{font-size:22px;padding:6px 10px}
+.iconPick button.sel{border-color:var(--gold);background:var(--line)}
+#pickNote,.hint{color:var(--dim);font-size:13px;margin:4px 0 8px}
+.topbar{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.topbar b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:18px}
+#mvDest{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.pk.cur{border-color:var(--gold)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{padding:4px 10px;font-size:13px;border-radius:999px}
+.chip.sel{background:var(--gold);color:#201a0a;border-color:var(--gold)}
+.cdTop{display:flex;gap:10px}.cdTop img{width:130px;border-radius:8px;align-self:flex-start}.cdInfo{flex:1;font-size:14px}
+#cardBody{overflow-y:auto;max-height:68vh}
+#tagBar{display:flex;gap:8px;align-items:center;margin-bottom:10px;color:var(--dim);font-size:13px}#tagBar span{flex:1}
+.tg{color:var(--gold);opacity:.85}.item .nm{cursor:pointer}#barText{cursor:pointer;text-decoration:underline dotted}
+#repText{white-space:pre-wrap;font-size:13px;max-height:60vh;overflow:auto}
 </style>
 </head>
 <body>
 <nav role="tablist">
   <button role="tab" id="tabScan" aria-selected="true">Scan</button>
-  <button role="tab" id="tabColl" aria-selected="false">Collection</button>
+  <button role="tab" id="tabColl" aria-selected="false">Collections</button>
 </nav>
 <main>
   <section id="scanView">
@@ -83,55 +115,94 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
       <canvas id="overlay"></canvas>
       <div id="guide"><div id="strip"></div></div>
       <div id="camOff"><div>Camera is off. Hold a card in view, roughly upright, about a hand's width from the lens.</div><button class="primary" id="camBtn">Start camera</button></div>
+      <label id="setPill"><input type="checkbox" id="reqSet"> By set</label>
     </div>
-    <div class="row">
-      <button class="primary" id="scanBtn" disabled>Scan card</button>
-      <label><input type="checkbox" id="auto" style="width:auto"> Auto-add</label>
+    <div class="row ctl">
+      <select id="target" aria-label="Add scanned cards to"></select>
+      <button class="primary" id="scanBtn" disabled>Scan</button>
+      <label><input type="checkbox" id="auto" style="width:auto"> Auto</label>
     </div>
     <div id="status">Loading card names…</div>
-    <div id="camNote"></div>
-    <div id="debug"><canvas id="crop" width="1" height="1"></canvas><span id="ocrText"></span></div>
     <div id="cands"></div>
     <div id="bar"><span id="barText"></span><button class="small" id="plus">+1</button><button class="small" id="undo">Undo</button></div>
     <h3>Add by name</h3>
     <input id="manual" type="search" placeholder="Type part of a card name" autocomplete="off" autocapitalize="off">
     <div id="suggest"></div>
+    <details id="dbg"><summary>Scan details</summary>
+      <div id="camNote"></div>
+      <div id="debug"><canvas id="crop" width="1" height="1"></canvas><span id="ocrText"></span></div>
+    </details>
   </section>
 
   <section id="collView" hidden>
-    <div class="row">
-      <input id="filter" type="search" placeholder="Search collection">
-      <select id="sort" style="flex:none;width:auto">
-        <option value="recent">Newest</option>
-        <option value="name">Name</option>
-        <option value="type">Type</option>
-        <option value="cmc">Mana value</option>
-        <option value="price">Price</option>
-      </select>
+    <div id="tagBar"><span id="tagStat"></span><button class="small" id="tagRefresh">Re-check tags</button></div>
+    <div id="gridView">
+      <div id="grid"></div>
+      <div class="tools">
+        <button id="copyAll">Copy all as text</button>
+        <button id="csvAll">Download CSV</button>
+        <button id="dlJson">Back up (JSON)</button>
+        <button id="restore">Restore backup</button>
+      </div>
     </div>
-    <div id="counts"></div>
-    <div id="list"></div>
-    <div class="tools">
-      <button id="copyList">Copy as text list</button>
-      <button id="dlCsv">Download CSV</button>
-      <button id="dlJson">Back up (JSON)</button>
-      <button id="restore">Restore backup</button>
+    <div id="binView" hidden>
+      <div class="topbar"><button class="small" id="back">‹ Back</button><b id="binTitle"></b><button class="small" id="binMenu">Edit</button></div>
+      <div class="row">
+        <input id="filter" type="search" placeholder="Search this collection">
+        <select id="sort" style="flex:none;width:auto">
+          <option value="recent">Newest</option>
+          <option value="name">Name</option>
+          <option value="type">Type</option>
+          <option value="cmc">Mana value</option>
+          <option value="price">Price</option>
+        </select>
+      </div>
+      <div id="counts"></div>
+      <div id="list"></div>
+      <div class="tools">
+        <button id="copyList">Copy list</button>
+        <button id="dlCsv">Download CSV</button>
+      </div>
     </div>
     <input type="file" id="file" accept="application/json" hidden>
   </section>
 </main>
 
 <dialog id="pick">
-  <div id="pickHead"><b id="pickTitle"></b><button class="small" id="pickClose">Close</button></div>
+  <div class="dhead"><b id="pickTitle"></b><button class="small" id="pickClose">Cancel</button></div>
+  <div id="pickNote"></div>
+  <button id="pickAny" class="small" hidden style="margin-bottom:8px">Add without choosing a set</button>
   <div id="pickList"></div>
+</dialog>
+<dialog id="binDlg">
+  <div class="dhead"><b id="binDlgTitle"></b></div>
+  <input id="binName" placeholder="Collection name" maxlength="40" autocomplete="off">
+  <div class="row"><select id="binType"><option value="storage">Storage bucket</option><option value="deck">Deck</option></select></div>
+  <div class="iconPick" id="iconPick"></div>
+  <div class="hint" id="binHint"></div>
+  <div class="row"><button class="primary" id="binSave">Save</button><button id="binCancel">Cancel</button><button id="binDelete">Delete</button></div>
+</dialog>
+<dialog id="cardDlg">
+  <div class="dhead"><button class="small" id="cardBack" hidden>‹ Back</button><b id="cardTitle"></b><button class="small" id="cardClose">Close</button></div>
+  <div id="cardBody"></div>
+</dialog>
+<dialog id="repDlg">
+  <div class="dhead"><b>Tag re-check</b><button class="small" id="repClose">Close</button></div>
+  <pre id="repText"></pre>
+</dialog>
+<dialog id="moveDlg">
+  <div class="dhead"><b id="mvTitle"></b><button class="small" id="mvClose">Cancel</button></div>
+  <div class="row"><label>How many <input id="mvQty" type="number" min="1" value="1" style="width:80px"></label></div>
+  <div id="mvDest"></div>
 </dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script type="module">
 import { moveCard } from './moves.js';
 import { findCard, warpCard, CARD_W, CARD_H } from './cardfind.js';
+import { TAGS, tagLabel } from './tags.js';
 import { norm, match as matchIn, textOverlap, fuse, Voter } from './matcher.js';
-window.moveCard = moveCard; // handy for testing from a console; not wired into the UI yet
+window.moveCard = moveCard; window.getStore = () => store; window.getTags = () => tagdb; // handy for poking at things from a console
 
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -143,14 +214,33 @@ const idb = {
   async get(k){ const db = this.db ??= await this.open(); return new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
   async set(k, v){ const db = this.db ??= await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
 };
+// tiny element builder: h('div', {className:'x', onclick: fn}, child, child...)
+const h = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 
-/* store shape: { v, bins:{id:{id,name,type}}, cards:{ [name]: {name, bins:{binId:qty}, added, ...scryfall fields} } }
-   Each card name carries ONE chosen printing (set, collector number, price) that applies to all its copies. */
-let store = { v: 1, bins: { bulk: { id: 'bulk', name: 'Bulk', type: 'storage' } }, cards: {} };
+/* store shape (this is what the JSON backup contains):
+   { v, settings:{requireSet, target},
+     bins:  { [binId]: {id, name, type:'storage'|'deck', icon} },
+     cards: { [key]: {key, name, bins:{[binId]: qty}, added, confirmed, ...scryfall fields} } }
+   A card's key is its name alone ("any printing") or `${name}|${set}|${collector number}` when a printing was chosen.
+   moveCard() in moves.js takes that key. */
+const ICONS = ['📦', '🗃️', '🧰', '🃏', '⚔️', '🧙', '🔥', '💧', '🌲', '⚡', '💀', '☀️', '⭐', '🏷️'];
+let store = { v: 2, settings: { requireSet: false, target: 'bulk' }, bins: { bulk: { id: 'bulk', name: 'Bulk', type: 'storage', icon: '📦' } }, cards: {} };
+function normalizeStore(){ // fills in anything an older save is missing
+  store.v = 2;
+  store.settings = { requireSet: false, target: 'bulk', ...(store.settings || {}) };
+  store.bins ??= {}; store.cards ??= {};
+  if (!Object.keys(store.bins).length) store.bins.bulk = { id: 'bulk', name: 'Bulk', type: 'storage', icon: '📦' };
+  for (const b of Object.values(store.bins)){ b.type ??= 'storage'; b.icon ??= b.type === 'deck' ? '🃏' : '📦'; }
+  for (const [k, c] of Object.entries(store.cards)) c.key ??= k; // older saves keyed cards by name only
+  if (!store.bins[store.settings.target]) store.settings.target = Object.keys(store.bins)[0];
+}
 let saveTimer = null;
 function save(){ clearTimeout(saveTimer); saveTimer = setTimeout(() => idb.set('store', store), 300); }
 const totalQty = c => Object.values(c.bins).reduce((a, b) => a + b, 0);
 const money = p => p == null ? null : '$' + p.toFixed(2);
+const keyOf = (name, p) => p ? `${name}|${p.set}|${p.collector_number ?? p.cn}` : name;
+const curBin = () => store.bins[store.settings.target] ? store.settings.target : Object.keys(store.bins)[0];
+let lastSet = null; // set code of the last printing you picked: offered first next time
 
 /* ---------- card name catalog + fuzzy match ---------- */
 let index = [];
@@ -183,54 +273,71 @@ function suggest(raw){
 }
 
 /* ---------- collection actions ---------- */
-let lastAdded = null;
-function addCard(name, qty = 1, bin = 'bulk'){
-  const c = store.cards[name] ??= { name, bins: {}, added: Date.now() };
+let lastAdded = null; // {key, bin}
+// add copies of a card to a bin. Pass `printing` (a Scryfall card object) to file it under that exact printing.
+function addCard(name, { qty = 1, bin = curBin(), printing = null, key = null } = {}){
+  key ??= keyOf(name, printing);
+  let c = store.cards[key];
+  if (!c){
+    c = store.cards[key] = { key, name, bins: {}, added: Date.now() };
+    if (printing){ applyPrinting(c, printing); c.confirmed = true; }
+  }
+  if (printing) lastSet = printing.set;
   c.bins[bin] = (c.bins[bin] || 0) + qty;
-  lastAdded = { name, bin };
+  lastAdded = { key, bin };
   navigator.vibrate?.(30);
-  save(); renderBar(); renderList(); enqueue(name);
+  save(); renderBar(); renderList(); enqueue(key);
+  return key;
 }
-function removeOne(name, bin){
-  const c = store.cards[name]; if (!c) return;
+function removeOne(key, bin){
+  const c = store.cards[key]; if (!c) return;
   c.bins[bin] = (c.bins[bin] || 0) - 1;
   if (c.bins[bin] <= 0) delete c.bins[bin];
-  if (totalQty(c) === 0) delete store.cards[name];
+  if (totalQty(c) === 0) delete store.cards[key];
   save(); renderBar(); renderList();
+}
+// the one door every scan / tap / typed name goes through: asks which printing first if "By set" is on
+async function requestAdd(name, bin = curBin()){
+  if (!store.settings.requireSet) return addCard(name, { bin });
+  const p = await pickPrinting({ name, allowAny: true, note: `Adding to ${store.bins[bin]?.name ?? 'collection'}. Which printing is it?` });
+  if (p == null) return null; // cancelled: nothing added
+  return addCard(name, { bin, printing: p === 'any' ? null : p });
 }
 function renderBar(){
   const bar = $('#bar');
-  if (!lastAdded){ bar.style.display = 'none'; return; }
-  const c = store.cards[lastAdded.name];
+  const c = lastAdded && store.cards[lastAdded.key];
   if (!c){ bar.style.display = 'none'; lastAdded = null; return; }
   bar.style.display = 'flex';
-  $('#barText').textContent = `Added ${c.name} (you have ${totalQty(c)})`;
+  const where = store.bins[lastAdded.bin]?.name ?? '?';
+  $('#barText').textContent = `${c.name}${c.confirmed ? ' (' + c.set.toUpperCase() + ')' : ''} → ${where}, now ${c.bins[lastAdded.bin] || 0}`;
 }
-$('#plus').onclick = () => lastAdded && addCard(lastAdded.name, 1, lastAdded.bin);
-$('#undo').onclick = () => { if (lastAdded) removeOne(lastAdded.name, lastAdded.bin); };
+$('#barText').onclick = () => lastAdded && openCard(lastAdded.key);
+$('#plus').onclick = () => { const c = lastAdded && store.cards[lastAdded.key]; if (c) addCard(c.name, { key: c.key, bin: lastAdded.bin }); };
+$('#undo').onclick = () => { if (lastAdded) removeOne(lastAdded.key, lastAdded.bin); };
 
 /* ---------- Scryfall details: printing, art, price ---------- */
 function applyPrinting(c, j){
   const f = j.card_faces?.[0], im = j.image_uris ?? f?.image_uris ?? {}, p = j.prices || {};
   const usd = p.usd ?? p.usd_foil ?? p.usd_etched ?? null;
   Object.assign(c, {
-    id: j.id, oracle_id: j.oracle_id, type_line: j.type_line, cmc: j.cmc ?? 0,
+    id: j.id, oracle_id: j.oracle_id ?? f?.oracle_id, type_line: j.type_line, cmc: j.cmc ?? 0,
     mana_cost: j.mana_cost ?? f?.mana_cost ?? '', colors: j.colors ?? f?.colors ?? [],
-    img: im.small ?? '', art: im.art_crop ?? '',
+    img: im.small ?? '', imgN: im.normal ?? '', art: im.art_crop ?? '',
     set: j.set, set_name: j.set_name, cn: j.collector_number,
     price: usd == null ? null : Number(usd), foilOnly: p.usd == null && usd != null, priceAt: Date.now()
   });
   delete c.err;
+  tagWant(c.oracle_id);
 }
 
 const queue = []; let running = false;
-function enqueue(n){ const c = store.cards[n]; if (c && !c.id && c.err !== 404 && !queue.includes(n)){ queue.push(n); runQueue(); } }
+function enqueue(key){ const c = store.cards[key]; if (c && !c.id && c.err !== 404 && !queue.includes(key)){ queue.push(key); runQueue(); } }
 async function runQueue(){
   if (running) return; running = true;
   while (queue.length){
-    const n = queue.shift(), c = store.cards[n]; if (!c) continue;
+    const key = queue.shift(), c = store.cards[key]; if (!c) continue;
     try {
-      const r = await fetch('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(n));
+      const r = await fetch('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(c.name));
       if (r.ok) applyPrinting(c, await r.json()); else c.err = r.status;
     } catch (e) { c.err = 'offline'; }
     save(); renderList();
@@ -240,51 +347,308 @@ async function runQueue(){
 }
 // Scryfall asks that prices not be older than a day, so refresh stale ones in batches of 75
 async function refreshPrices(){
-  const stale = Object.values(store.cards).filter(c => c.id && Date.now() - (c.priceAt || 0) > 864e5);
-  for (let i = 0; i < stale.length; i += 75){
-    const batch = stale.slice(i, i + 75);
+  const byId = new Map();
+  for (const c of Object.values(store.cards)) if (c.id && Date.now() - (c.priceAt || 0) > 864e5) (byId.get(c.id) ?? byId.set(c.id, []).get(c.id)).push(c);
+  const ids = [...byId.keys()];
+  for (let i = 0; i < ids.length; i += 75){
     try {
-      const r = await fetch('https://api.scryfall.com/cards/collection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifiers: batch.map(c => ({ id: c.id })) }) });
+      const r = await fetch('https://api.scryfall.com/cards/collection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifiers: ids.slice(i, i + 75).map(id => ({ id })) }) });
       if (!r.ok) break;
-      const j = await r.json();
-      for (const card of j.data){ const c = batch.find(x => x.id === card.id); if (c) applyPrinting(c, card); }
+      for (const card of (await r.json()).data) for (const c of byId.get(card.id) || []) applyPrinting(c, card);
       save(); renderList();
     } catch (e) { break; }
     await sleep(150);
   }
 }
 
-/* printing picker */
-async function openPrintings(name){
-  const c = store.cards[name]; if (!c?.oracle_id) return;
-  const dlg = $('#pick'), box = $('#pickList');
-  $('#pickTitle').textContent = name; box.textContent = 'Loading printings…';
-  if (!dlg.open) dlg.showModal();
+/* ---------- functional tags (Scryfall otag), cached per card; see tags.js ---------- */
+let tagdb = { byOracle: {} }; // oracle id -> {tags, at, sig}. Saved separately from the collection, and included in the JSON backup.
+const SIG = TAGS.join(','); // when tags.js changes, every card is re-checked
+const want = new Set(), force = new Map(); // force: oracle id -> its tags before a manual re-check
+let tagRunning = false, tagStop = false, refreshing = false, tagTimer = null;
+let tagFile = null, fileReport = ''; // tags.json (built by build_tags.py): {generated, complete, covered?, tags:{slug:{label}}, cards:{oracle_id:[slug]}}
+async function loadTagFile(){
   try {
-    const r = await fetch('https://api.scryfall.com/cards/search?q=' + encodeURIComponent('oracleid:' + c.oracle_id) + '&unique=prints&order=released&dir=desc');
-    const j = await r.json(); box.textContent = '';
-    if (!j.data) throw new Error('none');
-    for (const p of j.data){
-      const f = p.card_faces?.[0], im = p.image_uris ?? f?.image_uris ?? {}, pr = p.prices || {};
-      const price = money(pr.usd != null ? Number(pr.usd) : pr.usd_foil != null ? Number(pr.usd_foil) : null);
-      const b = document.createElement('button'); b.className = 'pk';
-      const img = Object.assign(document.createElement('img'), { src: im.small ?? '', alt: '', loading: 'lazy' });
-      const t = document.createElement('div'); t.className = 't';
-      const a = document.createElement('div'); a.textContent = `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number}`;
-      const s = document.createElement('div'); s.textContent = [price ?? 'no price', pr.usd == null && pr.usd_foil != null ? 'foil' : '', p.id === c.id ? 'current' : ''].filter(Boolean).join(' · ');
-      t.append(a, s); b.append(img, t);
-      b.onclick = () => { applyPrinting(c, p); save(); renderList(); dlg.close(); };
-      box.append(b);
-    }
-    if (j.has_more){ const d = document.createElement('div'); d.id = 'empty'; d.textContent = 'Showing the 175 most recent printings.'; box.append(d); }
-  } catch (e) { box.textContent = 'Could not load printings. Check your connection.'; }
+    const r = await fetch('tags.json', { cache: 'no-cache' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    tagFile = { generated: j.generated, complete: !!j.complete, covered: j.covered ? new Set(j.covered) : null, tags: j.tags || {}, cards: j.cards || {} };
+    return true;
+  } catch (e) { return false; } // missing or offline: keep whatever we had
 }
-$('#pickClose').onclick = () => $('#pick').close();
+const fileCovers = id => !!tagFile && (tagFile.complete || !!tagFile.covered?.has(id));
+const tagsOf = id => fileCovers(id) ? (tagFile.cards[id] ?? []) : (tagdb.byOracle[id]?.tags ?? []);
+const tagKnown = id => fileCovers(id) || !!tagdb.byOracle[id];
+const label = t => tagFile?.tags[t]?.label ?? tagLabel(t);
+const nameOf = id => Object.values(store.cards).find(c => c.oracle_id === id)?.name ?? id;
+const saveTags = () => { clearTimeout(tagTimer); tagTimer = setTimeout(() => idb.set('tagdb', tagdb), 500); };
+function tagWant(id){ if (!id || fileCovers(id)) return; const e = tagdb.byOracle[id]; if (!e || e.sig !== SIG){ want.add(id); runTags(); } }
+// for each batch of ~12 cards, one query per tag: "(oracleid:a OR oracleid:b ...) otag:ramp" returns just the cards that have it
+async function runTags(){
+  if (tagRunning) return; tagRunning = true; tagStop = false; renderTagStat();
+  const changes = [], hitTags = new Set(); let processed = 0, ok = true;
+  while (want.size && !tagStop && ok){
+    const ids = [...want].slice(0, 12), found = new Map(ids.map(i => [i, []]));
+    for (const tag of TAGS){
+      if (tagStop){ ok = false; break; }
+      const q = `(${ids.map(i => 'oracleid:' + i).join(' OR ')}) otag:${tag}`;
+      let hits = null;
+      for (let a = 0; a < 3 && hits === null; a++){
+        try {
+          const r = await fetch('https://api.scryfall.com/cards/search?unique=cards&q=' + encodeURIComponent(q));
+          if (r.status === 404) hits = [];
+          else if (r.status === 429) await sleep(2000);
+          else if (r.ok) hits = (await r.json()).data.map(c => c.oracle_id ?? c.card_faces?.[0]?.oracle_id);
+          else break;
+        } catch (e) { await sleep(1000); }
+        await sleep(110);
+      }
+      if (hits === null){ ok = false; break; }
+      if (hits.length) hitTags.add(tag);
+      for (const o of hits) found.get(o)?.push(tag);
+    }
+    if (!ok) break;
+    for (const id of ids){
+      tagdb.byOracle[id] = { tags: found.get(id), at: Date.now(), sig: SIG }; want.delete(id); processed++;
+      if (force.has(id)){
+        const a = new Set(force.get(id)), b = new Set(found.get(id)), plus = [...b].filter(t => !a.has(t)), minus = [...a].filter(t => !b.has(t));
+        if (plus.length || minus.length) changes.push({ id, plus, minus });
+        force.delete(id);
+      }
+    }
+    saveTags(); renderList(); renderTagStat();
+  }
+  tagRunning = false; renderTagStat();
+  if (ok && refreshing && !want.size){
+    refreshing = false;
+    const name = id => Object.values(store.cards).find(c => c.oracle_id === id)?.name ?? id;
+    let t = (fileReport ? fileReport + '\n\n' : '') + `Re-checked ${processed} cards live.\n` + (changes.length ? changes.map(c => `\n${name(c.id)}: ${[...c.plus.map(x => '+' + x), ...c.minus.map(x => '−' + x)].join(' ')}`).join('') : 'No tags changed.');
+    const dead = TAGS.filter(x => !hitTags.has(x));
+    if (processed >= 30 && dead.length) t += `\n\nMatched none of these cards (misspelled in tags.js, or just unused here): ${dead.join(', ')}`;
+    fileReport = ''; $('#repText').textContent = t; $('#repDlg').showModal();
+  }
+}
+function renderTagStat(){
+  const ids = new Set(Object.values(store.cards).map(c => c.oracle_id).filter(Boolean));
+  let live = 0, liveDone = 0;
+  for (const id of ids) if (!fileCovers(id)){ live++; if (tagdb.byOracle[id]?.sig === SIG) liveDone++; }
+  const src = tagFile ? `Tags from tags.json${tagFile.generated ? ' (' + tagFile.generated.slice(0, 10) + ')' : ''}` : 'Tags: live checks (no tags.json found)';
+  const liveTxt = live ? `${tagFile ? ' · ' : ': '}${liveDone}/${live} cards checked live${tagRunning ? ', working…' : want.size ? ', paused (offline?)' : ''}` : '';
+  $('#tagStat').textContent = !ids.size ? 'Tags show up once card details have loaded.' : tagFile ? src + liveTxt : src + (live ? ` · ${liveDone}/${live} checked${tagRunning ? ', working…' : want.size ? ', paused (offline?)' : ''}` : '');
+  $('#tagRefresh').textContent = tagRunning ? 'Stop' : tagFile ? 'Reload tags' : coll.view === 'bin' && coll.bin !== 'all' ? 'Re-check this folder' : 'Re-check tags';
+}
+$('#tagRefresh').onclick = async () => {
+  if (tagRunning){ tagStop = true; refreshing = false; return; }
+  const ids = [...new Set(rowsFor(coll.view === 'bin' ? coll.bin : 'all').map(c => c.oracle_id).filter(Boolean))];
+  if (!ids.length) return;
+  const before = new Map(ids.map(id => [id, [...tagsOf(id)]]));
+  fileReport = '';
+  if (await loadTagFile()){ // pick up a newly pushed tags.json and report what changed in this folder
+    const changes = [];
+    for (const id of ids){
+      if (!fileCovers(id)) continue;
+      const a = new Set(before.get(id)), b = new Set(tagsOf(id)), plus = [...b].filter(t => !a.has(t)), minus = [...a].filter(t => !b.has(t));
+      if (plus.length || minus.length) changes.push(`${nameOf(id)}: ${[...plus.map(x => '+' + x), ...minus.map(x => '−' + x)].join(' ')}`);
+    }
+    fileReport = `tags.json reloaded${tagFile.generated ? ' (built ' + tagFile.generated.slice(0, 10) + ')' : ''}. ` + (changes.length ? `${changes.length} cards changed:\n` + changes.join('\n') : 'No tags changed.') + '\n(For newer tags from Scryfall, rerun build_tags.py and push the file.)';
+  }
+  const live = ids.filter(id => !fileCovers(id));
+  if (live.length){ for (const id of live){ force.set(id, [...tagsOf(id)]); want.add(id); } refreshing = true; runTags(); }
+  else if (fileReport){ $('#repText').textContent = fileReport; fileReport = ''; $('#repDlg').showModal(); }
+  renderList();
+};
+$('#repClose').onclick = () => $('#repDlg').close();
 
-/* ---------- collection view ---------- */
+/* card detail: tags, and "similar in your collection" ranked by shared tags (tap tags to require them) */
+let cardKey = null, cardBack = [], selTags = new Set();
+function openCard(key, fromSimilar = false){
+  if (fromSimilar && cardKey) cardBack.push(cardKey); else if (!fromSimilar) cardBack = [];
+  cardKey = key; selTags = new Set(); renderCard();
+  if (!$('#cardDlg').open) $('#cardDlg').showModal();
+}
+function similar(c, sel){
+  const base = new Set(tagsOf(c.oracle_id)), seen = new Map();
+  for (const o of Object.values(store.cards)){
+    if (!o.oracle_id || o.oracle_id === c.oracle_id) continue;
+    const t = tagsOf(o.oracle_id), shared = t.filter(x => base.has(x));
+    if (!shared.length || [...sel].some(x => !t.includes(x))) continue;
+    const e = seen.get(o.oracle_id) ?? seen.set(o.oracle_id, { rep: o, shared, bins: {} }).get(o.oracle_id);
+    for (const [b, n] of Object.entries(o.bins)) e.bins[b] = (e.bins[b] || 0) + n;
+  }
+  return [...seen.values()].sort((a, b) => b.shared.length - a.shared.length || a.rep.name.localeCompare(b.rep.name)).slice(0, 60);
+}
+const where = bins => Object.entries(bins).map(([b, n]) => `${store.bins[b]?.icon ?? ''} ${store.bins[b]?.name ?? b} ×${n}`).join('   ');
+function renderCard(){
+  const c = store.cards[cardKey]; if (!c){ $('#cardDlg').close(); return; }
+  $('#cardTitle').textContent = c.name; $('#cardBack').hidden = !cardBack.length;
+  const tags = tagsOf(c.oracle_id), body = $('#cardBody'); body.textContent = '';
+  body.append(h('div', { className: 'cdTop' }, c.imgN || c.img ? h('img', { src: c.imgN || c.img, alt: '' }) : '',
+    h('div', { className: 'cdInfo' }, h('div', { textContent: [c.mana_cost, c.type_line].filter(Boolean).join('  ') }), c.id ? h('div', { className: 'hint', textContent: printLabel(c) }) : '', h('div', { className: 'hint', textContent: where(c.bins) }))));
+  const chips = h('div', { className: 'chips' });
+  if (!tags.length) chips.append(h('div', { className: 'hint', textContent: tagKnown(c.oracle_id) ? 'No functional tags found for this card.' : 'Checking tags… they appear here when done.' }));
+  for (const t of tags) chips.append(h('button', { className: 'chip' + (selTags.has(t) ? ' sel' : ''), textContent: label(t), onclick: () => { selTags.has(t) ? selTags.delete(t) : selTags.add(t); renderCard(); } }));
+  body.append(h('h3', { textContent: 'Functional tags (tap to narrow the similar cards)' }), chips);
+  if (!tags.length) return;
+  const sim = similar(c, selTags);
+  body.append(h('h3', { textContent: `Similar in your collection (${sim.length})${selTags.size ? ', with all selected tags' : ''}` }));
+  if (!sim.length) body.append(h('div', { className: 'hint', textContent: 'Nothing else you own shares those tags yet.' }));
+  for (const e of sim) body.append(h('button', { className: 'pk', onclick: () => openCard(e.rep.key, true) },
+    e.rep.img ? h('img', { src: e.rep.img, alt: '' }) : h('div', { className: 'ph' }),
+    h('div', { className: 't' }, h('div', { textContent: e.rep.name }), h('div', { textContent: `${e.shared.length} shared: ${e.shared.map(label).join(', ')} · ${where(e.bins)}` }))));
+  const q = selTags.size ? [...selTags].map(t => 'otag:' + t).join(' ') : '(' + tags.map(t => 'otag:' + t).join(' OR ') + ')';
+  body.append(h('p', {}, h('a', { href: 'https://scryfall.com/search?q=' + encodeURIComponent(q), target: '_blank', rel: 'noopener', textContent: 'Search all of Scryfall for these tags ↗', style: 'color:var(--gold)' })));
+}
+$('#cardClose').onclick = () => $('#cardDlg').close();
+$('#cardBack').onclick = () => { cardKey = cardBack.pop(); selTags = new Set(); renderCard(); };
+const tagLine = c => { const t = tagsOf(c.oracle_id); return t.length ? t.slice(0, 4).map(label).join(' · ') + (t.length > 4 ? ` +${t.length - 4}` : '') : c.oracle_id && !tagKnown(c.oracle_id) ? 'tags: checking…' : ''; };
+
+/* printing picker: resolves with a Scryfall card (the printing), 'any', or null if cancelled */
+let pickResolve = null;
+function finish(v){ const r = pickResolve; pickResolve = null; if ($('#pick').open) $('#pick').close(); if (r) r(v); }
+$('#pickClose').onclick = () => finish(null);
+$('#pickAny').onclick = () => finish('any');
+$('#pick').addEventListener('close', () => { if (pickResolve) finish(null); });
+function pickPrinting({ name, oracleId, note = '', allowAny = false, currentId = null }){
+  return new Promise(resolve => {
+    if (pickResolve) finish(null);
+    pickResolve = resolve;
+    const dlg = $('#pick'), box = $('#pickList');
+    $('#pickTitle').textContent = name; $('#pickNote').textContent = note; $('#pickAny').hidden = !allowAny; box.textContent = 'Loading printings…';
+    dlg.showModal();
+    (async () => {
+      try {
+        const q = (oracleId ? 'oracleid:' + oracleId : `!"${name.replace(/"/g, '')}"`) + ' game:paper';
+        const r = await fetch('https://api.scryfall.com/cards/search?q=' + encodeURIComponent(q) + '&unique=prints&order=released&dir=desc');
+        const j = await r.json();
+        if (pickResolve !== resolve) return; // cancelled while loading
+        if (!j.data?.length) throw new Error('none');
+        if (j.data.length === 1 && allowAny){ finish(j.data[0]); return; } // only one printing exists: nothing to confirm
+        const list = [...j.data].sort((a, b) => (b.set === lastSet) - (a.set === lastSet)); // same set as the last card first
+        box.textContent = '';
+        for (const p of list){
+          const f = p.card_faces?.[0], im = p.image_uris ?? f?.image_uris ?? {}, pr = p.prices || {};
+          const price = money(pr.usd != null ? Number(pr.usd) : pr.usd_foil != null ? Number(pr.usd_foil) : null);
+          const meta = [price ?? 'no price', pr.usd == null && pr.usd_foil != null ? 'foil only' : '', p.rarity, p.set === lastSet ? 'same set as last card' : '', p.id === currentId ? 'current' : ''].filter(Boolean).join(' · ');
+          box.append(h('button', { className: 'pk' + (p.id === currentId ? ' cur' : ''), onclick: () => finish(p) },
+            h('img', { src: im.small ?? '', alt: '', loading: 'lazy' }),
+            h('div', { className: 't' }, h('div', { textContent: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number}` }), h('div', { textContent: meta }))));
+        }
+        if (j.has_more) box.append(h('div', { className: 'hint', textContent: 'Showing the 175 most recent printings.' }));
+      } catch (e) { if (pickResolve === resolve) box.textContent = 'Could not load printings. Check your connection.'; }
+    })();
+  });
+}
+// change the printing of an existing card (all its copies move to the new printing's record)
+async function changePrinting(key){
+  const c = store.cards[key]; if (!c) return;
+  const p = await pickPrinting({ name: c.name, oracleId: c.oracle_id, currentId: c.id, note: `Applies to all ${totalQty(c)} copies.` });
+  if (!p || p === 'any') return;
+  const nk = keyOf(c.name, p);
+  if (nk === key){ applyPrinting(c, p); c.confirmed = true; }
+  else {
+    let t = store.cards[nk];
+    if (!t){ t = store.cards[nk] = { key: nk, name: c.name, bins: {}, added: c.added }; applyPrinting(t, p); t.confirmed = true; }
+    for (const [b, q] of Object.entries(c.bins)) t.bins[b] = (t.bins[b] || 0) + q;
+    delete store.cards[key];
+    if (lastAdded?.key === key) lastAdded.key = nk;
+  }
+  lastSet = p.set; save(); renderList(); renderBar();
+}
+
+/* ---------- collections (bins): scanner dropdown, folder grid, edit/move dialogs ---------- */
+function renderTarget(){
+  const sel = $('#target'); sel.textContent = '';
+  for (const b of Object.values(store.bins)) sel.append(h('option', { value: b.id, textContent: `${b.icon} ${b.name}` }));
+  sel.append(h('option', { value: '__new', textContent: '＋ New collection…' }));
+  sel.value = curBin();
+}
+$('#target').onchange = e => { if (e.target.value === '__new'){ editBin(null, true); return; } store.settings.target = e.target.value; save(); };
+function syncToggle(){ $('#reqSet').checked = !!store.settings.requireSet; $('#setPill').classList.toggle('on', !!store.settings.requireSet); }
+$('#reqSet').onchange = e => { store.settings.requireSet = e.target.checked; syncToggle(); save(); };
+
+function binStats(){
+  const s = {}; for (const id in store.bins) s[id] = { qty: 0, unique: 0, value: 0 };
+  for (const c of Object.values(store.cards)) for (const [b, q] of Object.entries(c.bins)){ const t = s[b]; if (t){ t.unique++; t.qty += q; t.value += (c.price ?? 0) * q; } }
+  return s;
+}
+let coll = { view: 'grid', bin: null }; // bin: 'all' or a bin id
+const openBin = id => { coll = { view: 'bin', bin: id }; renderList(); };
+const openGrid = () => { coll = { view: 'grid', bin: null }; renderList(); };
+$('#back').onclick = openGrid;
+
+let editing = null, chosenIcon = '📦', selectAfter = false;
+function renderIcons(){ const box = $('#iconPick'); box.textContent = ''; for (const ic of ICONS) box.append(h('button', { textContent: ic, className: ic === chosenIcon ? 'sel' : '', onclick: () => { chosenIcon = ic; renderIcons(); } })); }
+function editBin(id, thenSelect = false){
+  editing = id; selectAfter = thenSelect;
+  const b = id ? store.bins[id] : { name: '', type: 'storage', icon: '📦' };
+  $('#binDlgTitle').textContent = id ? 'Edit collection' : 'New collection';
+  $('#binName').value = b.name; $('#binType').value = b.type; chosenIcon = b.icon; renderIcons();
+  const qty = id ? binStats()[id].qty : 0, last = Object.keys(store.bins).length <= 1;
+  $('#binDelete').hidden = !id; $('#binDelete').disabled = qty > 0 || last;
+  $('#binHint').textContent = id && qty > 0 ? 'Move or remove its cards before deleting it.' : id && last ? 'You need at least one collection.' : '';
+  $('#binDlg').showModal();
+}
+$('#binMenu').onclick = () => editBin(coll.bin);
+$('#binCancel').onclick = () => $('#binDlg').close();
+$('#binDlg').addEventListener('close', renderTarget);
+$('#binSave').onclick = () => {
+  const name = $('#binName').value.trim() || 'Untitled', type = $('#binType').value;
+  if (editing){ Object.assign(store.bins[editing], { name, type, icon: chosenIcon }); }
+  else {
+    const id = 'b' + Date.now().toString(36);
+    store.bins[id] = { id, name, type, icon: chosenIcon };
+    if (selectAfter) store.settings.target = id;
+  }
+  save(); $('#binDlg').close(); renderList();
+};
+$('#binDelete').onclick = () => {
+  if (!editing || !confirm('Delete this collection?')) return;
+  delete store.bins[editing];
+  if (!store.bins[store.settings.target]) store.settings.target = Object.keys(store.bins)[0];
+  save(); $('#binDlg').close(); openGrid();
+};
+
+let mv = null;
+function openMove(key, from){
+  const c = store.cards[key]; mv = { key, from };
+  $('#mvTitle').textContent = `Move ${c.name}`; $('#mvQty').max = c.bins[from]; $('#mvQty').value = 1;
+  const box = $('#mvDest'); box.textContent = '';
+  for (const b of Object.values(store.bins)) if (b.id !== from) box.append(h('button', { textContent: `${b.icon} ${b.name}`, onclick: () => doMove(b.id) }));
+  $('#moveDlg').showModal();
+}
+function doMove(to){
+  const c = store.cards[mv.key]; if (!c) return;
+  const n = Math.max(1, Math.min(Number($('#mvQty').value) || 1, c.bins[mv.from] || 1));
+  moveCard(store, mv.key, mv.from, to, n); // your code in moves.js
+  save(); $('#moveDlg').close(); renderList(); renderBar();
+}
+$('#mvClose').onclick = () => $('#moveDlg').close();
+
+/* ---------- collections screen ---------- */
 function renderList(){
+  renderTagStat();
+  $('#gridView').hidden = coll.view !== 'grid'; $('#binView').hidden = coll.view !== 'bin';
+  if (coll.view === 'grid') renderGrid(); else renderBin();
+}
+function tile(icon, name, sub, badge, onclick, wide){
+  return h('button', { className: 'tile' + (wide ? ' wide' : ''), onclick }, h('span', { className: 'ic', textContent: icon }), h('span', { className: 'nm', textContent: name }), h('span', { className: 'sb', textContent: sub }), badge ? h('span', { className: 'bd', textContent: badge }) : '');
+}
+function renderGrid(){
+  const st = binStats(), all = Object.values(store.cards), grid = $('#grid'); grid.textContent = '';
+  const qty = all.reduce((a, c) => a + totalQty(c), 0), value = all.reduce((s, c) => s + (c.price ?? 0) * totalQty(c), 0);
+  grid.append(tile('🗂️', 'All cards', `${qty} cards · ${money(value)}`, '', () => openBin('all'), true));
+  for (const b of Object.values(store.bins)) grid.append(tile(b.icon, b.name, `${st[b.id].qty} cards · ${money(st[b.id].value)}`, b.type === 'deck' ? 'Deck' : 'Storage', () => openBin(b.id)));
+  grid.append(h('button', { className: 'tile add', onclick: () => editBin(null) }, h('span', { className: 'ic', textContent: '+' }), h('span', { className: 'nm', textContent: 'New collection' })));
+}
+const printLabel = c => c.confirmed ? `${(c.set || '').toUpperCase()} #${c.cn} · ${money(c.price) ?? 'no price'}${c.foilOnly ? ' foil' : ''} · change` : `any printing · ~${money(c.price) ?? 'no price'} · choose`;
+function renderBin(){
+  const id = coll.bin, isAll = id === 'all';
+  if (!isAll && !store.bins[id]){ openGrid(); return; }
+  const bin = store.bins[id];
+  $('#binTitle').textContent = isAll ? '🗂️ All cards' : `${bin.icon} ${bin.name}`; $('#binMenu').hidden = isAll;
   const q = norm($('#filter').value || ''), sort = $('#sort').value;
-  let cards = Object.values(store.cards).filter(c => !q || norm(c.name).includes(q));
+  const qtyOf = c => isAll ? totalQty(c) : (c.bins[id] || 0);
+  const cards = Object.values(store.cards).filter(c => qtyOf(c) > 0 && (!q || norm(c.name).includes(q)));
   const by = {
     recent: (a, b) => b.added - a.added,
     name: (a, b) => a.name.localeCompare(b.name),
@@ -293,40 +657,31 @@ function renderList(){
     price: (a, b) => (b.price ?? -1) - (a.price ?? -1) || a.name.localeCompare(b.name)
   };
   cards.sort(by[sort]);
-  const all = Object.values(store.cards);
-  const value = all.reduce((s, c) => s + (c.price ?? 0) * totalQty(c), 0), unpriced = all.filter(c => c.id && c.price == null).length;
-  $('#counts').textContent = `${all.length} unique, ${all.reduce((a, c) => a + totalQty(c), 0)} total, about ${money(value)}` + (unpriced ? ` (${unpriced} without a price)` : '');
+  const scope = Object.values(store.cards).filter(c => qtyOf(c) > 0);
+  const value = scope.reduce((s, c) => s + (c.price ?? 0) * qtyOf(c), 0), unpriced = scope.filter(c => c.id && c.price == null).length;
+  $('#counts').textContent = `${scope.length} unique, ${scope.reduce((a, c) => a + qtyOf(c), 0)} total, about ${money(value)}` + (unpriced ? ` (${unpriced} without a price)` : '');
   const list = $('#list'); list.textContent = '';
-  if (!cards.length){
-    const d = document.createElement('div'); d.id = 'empty';
-    d.textContent = all.length ? 'No cards match that search.' : 'Nothing here yet. Scan a card or add one by name.';
-    list.append(d); return;
-  }
+  if (!cards.length){ list.append(h('div', { id: 'empty', textContent: scope.length ? 'No cards match that search.' : 'Nothing here yet. Scan a card with this collection selected, or add one by name.' })); return; }
+  const canMove = Object.keys(store.bins).length > 1;
   for (const c of cards.slice(0, 400)){
-    const row = document.createElement('div'); row.className = 'item';
-    const img = c.img ? Object.assign(document.createElement('img'), { src: c.img, alt: '', loading: 'lazy' }) : Object.assign(document.createElement('div'), { className: 'ph' });
-    const info = document.createElement('div'); info.className = 'info';
-    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
-    const tl = document.createElement('div'); tl.className = 'tl';
-    tl.textContent = c.id ? [c.mana_cost, c.type_line].filter(Boolean).join('  ') : c.err ? `Details unavailable (${c.err}). Reload to retry.` : 'Fetching details…';
-    info.append(nm, tl);
-    if (c.id){
-      const pb = document.createElement('button'); pb.className = 'link';
-      pb.textContent = `${(c.set || '').toUpperCase()} #${c.cn} · ${money(c.price) ?? 'no price'}${c.foilOnly ? ' foil' : ''} · change`;
-      pb.onclick = () => openPrintings(c.name);
-      info.append(pb);
+    const info = h('div', { className: 'info' }, h('div', { className: 'nm', textContent: c.name, onclick: () => openCard(c.key) }),
+      h('div', { className: 'tl', textContent: c.id ? [c.mana_cost, c.type_line].filter(Boolean).join('  ') : c.err ? `Details unavailable (${c.err}). Reload to retry.` : 'Fetching details…' }));
+    if (c.id) info.append(h('button', { className: 'link', textContent: printLabel(c), onclick: () => changePrinting(c.key) }));
+    if (tagLine(c)) info.append(h('div', { className: 'tl tg', textContent: tagLine(c) }));
+    let right;
+    if (isAll){
+      info.append(h('div', { className: 'tl', textContent: Object.entries(c.bins).map(([b, n]) => `${store.bins[b]?.icon ?? ''} ${store.bins[b]?.name ?? b} ×${n}`).join('   ') }));
+      right = h('div', { className: 'qty' }, h('b', { textContent: totalQty(c) }));
+    } else {
+      right = h('div', { className: 'qty' },
+        h('button', { textContent: '−', onclick: () => { if (c.bins[id] > 1 || confirm(`Remove ${c.name}?`)) removeOne(c.key, id); } }),
+        h('b', { textContent: c.bins[id] }),
+        h('button', { textContent: '+', onclick: () => addCard(c.name, { key: c.key, bin: id }) }));
+      if (canMove) info.append(h('button', { className: 'link', textContent: 'move…', onclick: () => openMove(c.key, id) }));
     }
-    const qty = document.createElement('div'); qty.className = 'qty';
-    const minus = Object.assign(document.createElement('button'), { textContent: '−' });
-    const plus = Object.assign(document.createElement('button'), { textContent: '+' });
-    const n = document.createElement('b'); n.textContent = totalQty(c);
-    const bin = () => c.bins.bulk ? 'bulk' : Object.keys(c.bins)[0];
-    minus.onclick = () => { if (totalQty(c) > 1 || confirm(`Remove ${c.name}?`)) removeOne(c.name, bin()); };
-    plus.onclick = () => addCard(c.name, 1, bin());
-    qty.append(minus, n, plus);
-    row.append(img, info, qty); list.append(row);
+    list.append(h('div', { className: 'item' }, c.img ? h('img', { src: c.img, alt: '', loading: 'lazy' }) : h('div', { className: 'ph' }), info, right));
   }
-  if (cards.length > 400){ const d = document.createElement('div'); d.id = 'empty'; d.textContent = `Showing 400 of ${cards.length}. Use search to narrow it down.`; list.append(d); }
+  if (cards.length > 400) list.append(h('div', { id: 'empty', textContent: `Showing 400 of ${cards.length}. Use search to narrow it down.` }));
 }
 $('#filter').oninput = renderList; $('#sort').onchange = renderList;
 
@@ -335,18 +690,22 @@ function download(name, text, type){
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type })), download: name });
   document.body.append(a); a.click(); a.remove();
 }
-const rowsOut = () => Object.values(store.cards).sort((a, b) => a.name.localeCompare(b.name));
-$('#copyList').onclick = async () => {
-  const t = rowsOut().map(c => `${totalQty(c)} ${c.name}`).join('\n');
+const rowsFor = scope => Object.values(store.cards).filter(c => scope === 'all' || c.bins[scope]).sort((a, b) => a.name.localeCompare(b.name) || (a.set || '').localeCompare(b.set || ''));
+const qtyIn = (c, scope) => scope === 'all' ? totalQty(c) : c.bins[scope];
+async function copyText(scope){
+  const t = rowsFor(scope).map(c => `${qtyIn(c, scope)} ${c.name}`).join('\n');
   try { await navigator.clipboard.writeText(t); setStatus('Copied. Paste it into Archidekt or a notes app.'); } catch { download('collection.txt', t, 'text/plain'); }
-};
-$('#dlCsv').onclick = () => {
+}
+function csv(scope){
   const esc = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const lines = ['Quantity,Name,Bin,Type,Set,Collector number,Price USD'];
-  for (const c of rowsOut()) for (const [b, q] of Object.entries(c.bins)) lines.push([q, esc(c.name), esc(store.bins[b]?.name || b), esc(c.type_line), esc((c.set || '').toUpperCase()), esc(c.cn), c.price ?? ''].join(','));
-  download('collection.csv', lines.join('\n'), 'text/csv');
-};
-$('#dlJson').onclick = () => download('bulk-sorter-backup.json', JSON.stringify(store), 'application/json');
+  const lines = ['Quantity,Name,Bin,Type,Set,Collector number,Price USD,Oracle ID,Scryfall ID,Tags'];
+  for (const c of rowsFor(scope)) for (const [b, q] of Object.entries(c.bins)) if (scope === 'all' || b === scope)
+    lines.push([q, esc(c.name), esc(store.bins[b]?.name || b), esc(c.type_line), esc((c.set || '').toUpperCase()), esc(c.cn), c.price ?? '', esc(c.oracle_id), esc(c.id), esc(tagsOf(c.oracle_id).join(';'))].join(','));
+  download(scope === 'all' ? 'collection.csv' : `${(store.bins[scope]?.name || 'collection').replace(/\W+/g, '_')}.csv`, lines.join('\n'), 'text/csv');
+}
+$('#copyAll').onclick = () => copyText('all'); $('#csvAll').onclick = () => csv('all');
+$('#copyList').onclick = () => copyText(coll.bin); $('#dlCsv').onclick = () => csv(coll.bin);
+$('#dlJson').onclick = () => download('bulk-sorter-backup.json', JSON.stringify({ ...store, tagdb }), 'application/json');
 $('#restore').onclick = () => $('#file').click();
 $('#file').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
@@ -354,7 +713,8 @@ $('#file').onchange = async e => {
     const j = JSON.parse(await f.text());
     if (!j.cards || !j.bins) throw new Error('bad file');
     if (!confirm('Replace your current collection with this backup?')) return;
-    store = j; save(); renderList(); renderBar(); Object.keys(store.cards).forEach(enqueue); refreshPrices();
+    if (j.tagdb){ tagdb = j.tagdb; tagdb.byOracle ??= {}; saveTags(); delete j.tagdb; }
+    store = j; normalizeStore(); save(); openGrid(); renderBar(); renderTarget(); syncToggle(); Object.keys(store.cards).forEach(enqueue); Object.values(store.cards).forEach(c => tagWant(c.oracle_id)); refreshPrices();
   } catch { alert('That file is not a Bulk Sorter backup.'); }
   e.target.value = '';
 };
@@ -374,7 +734,7 @@ function layout(){
   if (video.videoWidth){
     const ar = video.videoWidth / video.videoHeight;
     stage.style.aspectRatio = ar;
-    stage.style.width = `min(100%, ${68 * ar}vh)`;
+    stage.style.width = `min(100%, ${34 * ar}dvh)`;
   }
   const g = geo();
   Object.assign(guide.style, { left: g.gx + 'px', top: g.gy + 'px', width: g.gw + 'px', height: g.gh + 'px' });
@@ -578,7 +938,7 @@ function renderCands(cands){
     const b = document.createElement('button'); if (i === 0 && c.score >= 0.8) b.className = 'top';
     const a = document.createElement('span'), s = document.createElement('span');
     a.textContent = c.name; s.textContent = Math.round(c.score * 100) + '%'; s.style.color = 'var(--dim)';
-    b.append(a, s); b.onclick = () => { addCard(c.name); voter.clear(); box.textContent = ''; };
+    b.append(a, s); b.onclick = () => { voter.clear(); box.textContent = ''; requestAdd(c.name); };
     box.append(b);
   });
 }
@@ -606,7 +966,7 @@ async function autoLoop(){
           if (top && top.score >= 0.9 && lead && lead.name !== top.name) voter.clear(); // clearly a new card
           voter.push(res.cands);
           const pick = voter.decide(res.cands);
-          if (pick){ addCard(pick); locked = pick; voter.clear(); renderCands([]); setStatus(`Added ${pick}. Swap the card to scan the next one.`); }
+          if (pick){ locked = pick; voter.clear(); renderCands([]); setStatus(`Adding ${pick}…`); const k = await requestAdd(pick); setStatus(k ? `Added ${pick}. Swap the card to scan the next one.` : 'Not added. Swap the card to continue.'); }
           else { renderCands(voter.display(5)); setStatus(top ? 'Reading… tap a name below if it is not adding.' : 'Card found, reading its name…'); }
         }
       }
@@ -620,7 +980,7 @@ $('#manual').oninput = e => {
   const box = $('#suggest'); box.textContent = '';
   for (const name of suggest(e.target.value)){
     const b = document.createElement('button'); b.textContent = name; b.style.textAlign = 'left';
-    b.onclick = () => { addCard(name); e.target.value = ''; box.textContent = ''; };
+    b.onclick = () => { requestAdd(name); e.target.value = ''; box.textContent = ''; };
     box.append(b);
   }
 };
@@ -630,15 +990,19 @@ function tab(which){
   const scan = which === 'scan';
   $('#scanView').hidden = !scan; $('#collView').hidden = scan;
   $('#tabScan').setAttribute('aria-selected', scan); $('#tabColl').setAttribute('aria-selected', !scan);
-  if (!scan) renderList(); else layout();
+  if (!scan) renderList(); else { renderTarget(); layout(); }
 }
 $('#tabScan').onclick = () => tab('scan'); $('#tabColl').onclick = () => tab('coll');
 
 /* boot */
 (async () => {
   const saved = await idb.get('store'); if (saved) store = saved;
+  normalizeStore(); renderTarget(); syncToggle();
   renderList(); renderBar(); layout();
+  tagdb = (await idb.get('tagdb')) || { byOracle: {} }; tagdb.byOracle ??= {};
+  await loadTagFile();
   Object.keys(store.cards).forEach(enqueue);
+  Object.values(store.cards).forEach(c => tagWant(c.oracle_id));
   refreshPrices();
   loadCV();
   try {
