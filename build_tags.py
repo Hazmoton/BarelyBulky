@@ -24,6 +24,46 @@ def fetch(url):
     return gzip.decompress(data) if data[:2] == b'\x1f\x8b' else data
 
 
+def parse_tags(raw):
+    """Scryfall ships the tags as JSON Lines (one tag per line); also accept a plain JSON list or {"data": [...]}."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+    return obj.get('data', []) if isinstance(obj, dict) else obj
+
+
+def looks_like_tags(obj):
+    items = obj.get('data') if isinstance(obj, dict) else obj
+    return isinstance(items, list) and bool(items) and isinstance(items[0], dict) and ('taggings' in items[0] or 'label' in items[0])
+
+
+def find_tag_data(entry):
+    """The tags entry in Scryfall's bulk list may not have a download_uri like the card files do, so try every link it has."""
+    urls = []
+    for k in ('jsonl_download_uri', 'download_uri', 'download_url', 'uri', 'url', 'href'):
+        v = entry.get(k)
+        if isinstance(v, str) and v.startswith('http') and v not in urls:
+            urls.append(v)
+    urls += [v for v in entry.values() if isinstance(v, str) and v.startswith('http') and v not in urls]
+    for url in urls:
+        try:
+            raw = fetch(url)
+            obj = parse_tags(raw)
+        except Exception as e:
+            print(f'  {url} -> not usable ({type(e).__name__})')
+            continue
+        if looks_like_tags(obj):
+            return raw
+        if isinstance(obj, dict) and isinstance(obj.get('download_uri'), str) and obj['download_uri'] != url:
+            raw = fetch(obj['download_uri'])
+            if looks_like_tags(parse_tags(raw)):
+                return raw
+        print(f'  {url} -> not a tags file')
+    sys.exit('Could not find the tag data. Scryfall\'s entry for it looks like this (please paste this back):\n' + json.dumps(entry, indent=2))
+
+
 def slugify(s):
     return re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
 
@@ -67,12 +107,10 @@ def main():
             sys.exit('No "oracle_tags" bulk file in the list. Available types: ' + ', '.join(e.get('type', '?') for e in index) +
                      '\nDownload the tags file by hand and pass it with --file.')
         updated = entry.get('updated_at')
-        print(f"Downloading oracle_tags ({entry.get('size', 0) / 1e6:.1f} MB, updated {updated})...")
-        raw = fetch(entry['download_uri'])
+        print(f"Downloading oracle_tags (updated {updated}); entry fields: {', '.join(entry)}")
+        raw = find_tag_data(entry)
 
-    tags = json.loads(raw)
-    if isinstance(tags, dict):
-        tags = tags.get('data', [])
+    tags = parse_tags(raw)
     floor = WEIGHTS[a.min_weight]
     cards, labels = {}, {}
     for t in tags:
