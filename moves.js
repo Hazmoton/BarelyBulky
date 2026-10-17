@@ -1,10 +1,12 @@
 // YOUR MODULE: everything that moves cards between bins lives here, so you can rewrite it freely.
 // store shape:
-//   { bins:  { [binId]: { id, name, type: 'storage' | 'deck' } },
-//     cards: { [cardName]: { name, bins: { [binId]: quantity }, ...scryfall fields } } }
-// Returns true if anything moved.
-export function moveCard(store, name, fromBin, toBin, qty = 1){
-  const c = store.cards[name];
+//   { bins:  { [binId]: { id, name, type: 'storage' | 'deck', icon } },
+//     cards: { [key]: { key, name, bins: { [binId]: quantity }, ...scryfall fields } } }
+// `key` is the card's name ("any printing") or "name|set|collector number" when a printing was chosen,
+// so one card name can have several records. It changes `store` in place and returns true if anything moved.
+// It does NOT save or redraw: the app does that after calling it.
+export function moveCard(store, key, fromBin, toBin, qty = 1){
+  const c = store.cards[key];
   if (!c) return false;
   const have = c.bins[fromBin] || 0;
   const n = Math.min(qty, have);

@@ -200,8 +200,13 @@ summary{cursor:pointer;font-size:13px}
 <script type="module">
 import { moveCard } from './moves.js';
 import { findCard, warpCard, CARD_W, CARD_H } from './cardfind.js';
-import { TAGS, tagLabel } from './tags.js';
 import { norm, match as matchIn, textOverlap, fuse, Voter } from './matcher.js';
+
+// Fallback only: tags to check live for cards that tags.json doesn't cover. The full tag set comes from tags.json (build_tags.py).
+const TAGS = ['ramp', 'mana-rock', 'mana-dork', 'treasure', 'removal', 'boardwipe', 'counterspell', 'draw', 'cantrip', 'tutor',
+  'burn', 'lifegain', 'discard', 'mill', 'reanimate', 'recursion', 'graveyard-hate', 'flicker', 'sacrifice-outlet',
+  'token-generator', 'copy', 'protection', 'evasion', 'lord', 'anthem', 'cost-reducer', 'extra-turn', 'fixing'];
+const tagLabel = t => t.replace(/-/g, ' ');
 window.moveCard = moveCard; window.getStore = () => store; window.getTags = () => tagdb; // handy for poking at things from a console
 
 const $ = s => document.querySelector(s);
@@ -361,9 +366,9 @@ async function refreshPrices(){
   }
 }
 
-/* ---------- functional tags (Scryfall otag), cached per card; see tags.js ---------- */
+/* ---------- functional tags (Scryfall otag), cached per card; see build_tags.py ---------- */
 let tagdb = { byOracle: {} }; // oracle id -> {tags, at, sig}. Saved separately from the collection, and included in the JSON backup.
-const SIG = TAGS.join(','); // when tags.js changes, every card is re-checked
+const SIG = TAGS.join(','); // when the TAGS list below changes, every card is re-checked
 const want = new Set(), force = new Map(); // force: oracle id -> its tags before a manual re-check
 let tagRunning = false, tagStop = false, refreshing = false, tagTimer = null;
 let tagFile = null, fileReport = ''; // tags.json (built by build_tags.py): {generated, complete, covered?, tags:{slug:{label}}, cards:{oracle_id:[slug]}}
@@ -424,7 +429,7 @@ async function runTags(){
     const name = id => Object.values(store.cards).find(c => c.oracle_id === id)?.name ?? id;
     let t = (fileReport ? fileReport + '\n\n' : '') + `Re-checked ${processed} cards live.\n` + (changes.length ? changes.map(c => `\n${name(c.id)}: ${[...c.plus.map(x => '+' + x), ...c.minus.map(x => '−' + x)].join(' ')}`).join('') : 'No tags changed.');
     const dead = TAGS.filter(x => !hitTags.has(x));
-    if (processed >= 30 && dead.length) t += `\n\nMatched none of these cards (misspelled in tags.js, or just unused here): ${dead.join(', ')}`;
+    if (processed >= 30 && dead.length) t += `\n\nMatched none of these cards (misspelled in the TAGS list, or just unused here): ${dead.join(', ')}`;
     fileReport = ''; $('#repText').textContent = t; $('#repDlg').showModal();
   }
 }
